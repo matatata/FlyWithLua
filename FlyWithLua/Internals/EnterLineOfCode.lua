@@ -21,6 +21,7 @@ code_line_history[2] = "-- Get mouse, keyboard and screen info from MOUSE_X, MOU
 number_of_code_lines_in_history = 2
 local position_in_history = 3
 enter_the_code_line = false
+local error_string = nil
 
 function DrawFLyWithLuaInputLine()
 	local bubble_y = 40
@@ -42,6 +43,11 @@ function DrawFLyWithLuaInputLine()
 	glVertex2f(x_pos, 37)
 	glVertex2f(x_pos, 12)
 	glEnd()
+
+	if error_string ~= "" then
+		bubble_y = bubble(20, bubble_y, error_string)
+	end
+
 	
 	-- can we draw some debug info?
 	for debug_string in string.gmatch(line_of_code, "[%w_]+") do
@@ -117,7 +123,10 @@ end
 do_every_draw("DrawFLyWithLuaInputLine()")
 
 function GetLuaLineFromKeyboard()
+
 	if enter_the_code_line and KEY_ACTION == "pressed" then
+		error_string = nil
+
 		RESUME_KEY = true
 		-- escape
 		if VKEY == 27 then
@@ -151,8 +160,14 @@ function GetLuaLineFromKeyboard()
 		end
 		-- enter
 		if VKEY == 13 then
+			local ok
 			if line_of_code ~= "" then
-				assert(loadstring(line_of_code))()
+				
+				
+--				assert(loadstring(line_of_code))()
+				ok,error_string = evaluate_the_line_of_code(line_of_code)
+
+
 				if number_of_code_lines_in_history < 100 then
 					number_of_code_lines_in_history = number_of_code_lines_in_history + 1
 					code_line_history[number_of_code_lines_in_history] = line_of_code
@@ -164,14 +179,39 @@ function GetLuaLineFromKeyboard()
 					code_line_history[number_of_code_lines_in_history] = line_of_code
 				end
 			end
-			line_of_code = ""
-			enter_the_code_line = false
+			if ok then
+				line_of_code = ""
+				enter_the_code_line = false
+			-- elseif err then
+			-- 	line_of_code = err
+			end
 			return
 		end
+
+		
 		-- anything else
 		line_of_code = line_of_code .. CKEY
 	end
 end
+
+function evaluate_the_line_of_code(code,bubble_y)
+	
+
+	local func, err = load(code)
+	if func then
+	  local ok = pcall(func)
+	  if not ok then
+		return  false, "Execution error"
+	  else 
+		return true,nil
+	  end
+	else
+		return false,"Compilation error:" .. tostring(err)
+	end
+
+	
+end
+
 
 do_on_keystroke("GetLuaLineFromKeyboard()")
 
