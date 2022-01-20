@@ -1385,9 +1385,12 @@ int FWLKeySniffer(
     if (inFlags & xplm_DownFlag)
     {
         lua_pushstring(FWLLua, "pressed");
-    } else
+    } else if(inFlags & xplm_UpFlag)
     {
         lua_pushstring(FWLLua, "released");
+    }
+    else {
+        lua_pushstring(FWLLua, "hold");
     }
     lua_setglobal(FWLLua, "KEY_ACTION");
 
