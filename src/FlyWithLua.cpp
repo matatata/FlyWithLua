@@ -981,6 +981,8 @@ static std::string KeyEventCommand;
 static std::string NewMetarCommand;
 static std::string NewXSBTextCommand;
 
+
+
 float TimeBetweenCallbacks     = 1.0;                // processed every second
 float LongTimeBetweenCallbacks = 10.0;           // not so often processed
 // to increase performance
@@ -1067,6 +1069,7 @@ std::string LuaDrawCommand;
 XPLMWindowID FWLMouseEventWindowID;
 std::string  LuaMouseClickCommand;
 std::string  LuaMouseWheelCommand;
+std::string  LuaWindowCursorCommand;
 
 int LAST_SCREEN_WIDTH, LAST_SCREEN_HIGHT, LAST_SCREEN_HEIGHT;
 
@@ -1167,11 +1170,52 @@ int FWLMouseEventWindowMouseWheel(XPLMWindowID /*inWindowID*/,
 }
 
 XPLMCursorStatus FWLMouseEventWindowCursor(XPLMWindowID /*inWindowID*/,
-                                           int /*x*/,
-                                           int /*y*/,
+                                           int x,
+                                           int y,
                                            void* /*inRefcon*/)
 {
-    // noting to do with the cursor
+    // is Lua running? If not, use default cursor
+    if (!LuaIsRunning)
+    {
+        return xplm_CursorDefault;
+    }
+    
+    lua_pushnumber(FWLLua, x);
+    lua_setglobal(FWLLua, "CURSOR_X");
+    lua_pushnumber(FWLLua, y);
+    lua_setglobal(FWLLua, "CURSOR_Y");
+    lua_pushnumber(FWLLua, xplm_CursorDefault);
+    lua_setglobal(FWLLua, "WINDOW_CURSOR");
+    
+    // let Lua do it's work
+    RunLuaChunk("DO_ON_WINDOW_CURSOR_CHUNK");
+    
+    
+    // xplm_CursorDefault                       = 0,
+
+      /* X-Plane hides the cursor.                                                  */
+    // xplm_CursorHidden                        = 1,
+
+      /* X-Plane shows the cursor as the default arrow.                             */
+    // xplm_CursorArrow                         = 2,
+
+      /* X-Plane shows the cursor but lets you select an OS cursor.                 */
+    // xplm_CursorCustom                        = 3,
+     
+    
+    // should we resume the keystroke?
+    lua_getglobal(FWLLua, "WINDOW_CURSOR");
+    
+    if(lua_isnumber(FWLLua,-1)) {
+        int i = lua_tointeger(FWLLua,-1);
+        lua_pop(FWLLua, 1);
+        if(i >= 0 && i <= 3) {
+            return i;
+        }
+    }
+    else {
+        lua_pop(FWLLua, 1);
+    }
     return xplm_CursorDefault;
 }
 
@@ -2881,6 +2925,23 @@ static int LuaDoSometimes(lua_State* L)
     StoreLuaChunk(LongTimeCallbackCommand, "DO_SOMETIMES_CHUNK");
     return 0;
 }
+
+
+
+static int LuaDoWindowCursor(lua_State* L)
+{
+    if (!lua_isstring(L, 1))
+    {
+        logMsg(logToDevCon, "FlyWithLua Error: wrong thing to do? Your WindowCursor command is not a string.");
+        return 0;
+    }
+    std::string LuaShouldDoCommand = lua_tostring(L, 1);
+    LuaWindowCursorCommand.append(LuaShouldDoCommand).append("\n");
+    StoreLuaChunk(LuaWindowCursorCommand, "DO_ON_WINDOW_CURSOR_CHUNK");
+    return 0;
+}
+
+
 
 static int LuaClearAllButtonAssignments(lua_State* L)
 {
@@ -5879,6 +5940,7 @@ void RegisterCoreCFunctionsToLua(lua_State* L)
     lua_register(L, "do_on_keystroke", LuaDoEveryKeystroke);
     lua_register(L, "do_on_mouse_click", LuaDoEveryMouseClick);
     lua_register(L, "do_on_mouse_wheel", LuaDoEveryMouseWheel);
+    lua_register(L, "do_on_window_cursor", LuaDoWindowCursor);
     lua_register(L, "do_every_draw", LuaDoEveryDrawCallback);
     lua_register(L, "do_every_frame", LuaDoEveryFrame);
     lua_register(L, "do_often", LuaDoOften);
@@ -6469,7 +6531,8 @@ void ResetLuaEngine()
     StoreLuaChunk(NewXSBTextCommand, "DO_ON_NEW_XSB_TEXT_CHUNK");
     StoreLuaChunk(KeyEventCommand, "DO_ON_KEYSTROKE_CHUNK");
     StoreLuaChunk(LuaMouseClickCommand, "DO_ON_MOUSE_CLICK_CHUNK");
-    StoreLuaChunk(LuaMouseWheelCommand, "DO_ON_MOUSE_WHEEL_CHUNK");
+    StoreLuaChunk(LuaWindowCursorCommand, "DO_ON_WINDOW_CURSOR_CHUNK");
+    
 
     // clean up HID connections
     CloseAllOpenHIDDevices();
