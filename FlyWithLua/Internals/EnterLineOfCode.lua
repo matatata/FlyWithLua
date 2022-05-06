@@ -21,7 +21,7 @@ code_line_history[2] = "-- Get mouse, keyboard and screen info from MOUSE_X, MOU
 number_of_code_lines_in_history = 2
 local position_in_history = 3
 enter_the_code_line = false
-local error_string = nil
+local error_string = ""
 
 function DrawFLyWithLuaInputLine()
 	local bubble_y = 40

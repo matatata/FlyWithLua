@@ -1086,20 +1086,47 @@ void FWLMouseEventWindowKey(XPLMWindowID /*inWindowID*/, char /*inKey*/, XPLMKey
     // no keyboard handling to catch mouse events
 }
 
-int FWLMouseEventWindowRightMouse(XPLMWindowID /*inWindowID*/, int /*x*/, int /*y*/, XPLMMouseStatus /*isDown*/,
-                             void* /*inRefcon*/)
+int __FWLMouseEventWindowMouse(XPLMWindowID /*inWindowID*/, int /*x*/, int /*y*/, XPLMMouseStatus isDown,
+                               void* /*inRefcon*/,int buttonNumber);
+
+int FWLMouseEventWindowRightMouse(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus isDown,
+                             void* inRefcon)
 {
-    return 0;
+    return __FWLMouseEventWindowMouse(inWindowID,x,y,isDown,inRefcon,1);
 }
 
-int FWLMouseEventWindowMouse(XPLMWindowID /*inWindowID*/, int /*x*/, int /*y*/, XPLMMouseStatus isDown,
-                             void* /*inRefcon*/)
+int FWLMouseEventWindowMouse(XPLMWindowID inWindowID, int x, int y, XPLMMouseStatus isDown,
+                             void* inRefcon) {
+        return __FWLMouseEventWindowMouse(inWindowID,x,y,isDown,inRefcon,0);
+}
+
+
+// MOUSE_STATUS_BUTTON_MASK = 0 no button
+// MOUSE_STATUS_BUTTON_MASK = 1 left mouse
+// MOUSE_STATUS_BUTTON_MASK = 2 right mouse
+// MOUSE_STATUS_BUTTON_MASK = 3 left and right mouse
+
+void setMouseButtonBit(int bit,bool bitIsSet){
+    lua_getglobal(FWLLua,"MOUSE_STATUS_BUTTON_MASK");
+    int buttonBitMask = lua_tointeger(FWLLua,1);
+    lua_pop(FWLLua, 1);
+    if (bitIsSet)
+        buttonBitMask |= (1 << bit);
+    else
+        buttonBitMask &= ~(1 << bit);
+    lua_pushinteger(FWLLua, buttonBitMask);
+    lua_setglobal(FWLLua, "MOUSE_STATUS_BUTTON_MASK");
+}
+                                    
+int __FWLMouseEventWindowMouse(XPLMWindowID /*inWindowID*/, int /*x*/, int /*y*/, XPLMMouseStatus isDown,
+                             void* /*inRefcon*/,int buttonBit)
 {
     // is Lua running? If not, give the control back to X-Plane
     if (!LuaIsRunning)
     {
         return 0;
     }
+    
 
     // setup the predefined variables
     lua_pushboolean(FWLLua, false);
@@ -1107,19 +1134,22 @@ int FWLMouseEventWindowMouse(XPLMWindowID /*inWindowID*/, int /*x*/, int /*y*/, 
     if (isDown == xplm_MouseDown)
     {
         lua_pushstring(FWLLua, "down");
+        setMouseButtonBit(buttonBit,true);
     } else if (isDown == xplm_MouseDrag)
     {
         lua_pushstring(FWLLua, "drag");
+        setMouseButtonBit(buttonBit,true);
     } else
     {
         lua_pushstring(FWLLua, "up");
+        setMouseButtonBit(buttonBit,false);
     }
     lua_setglobal(FWLLua, "MOUSE_STATUS");
 
     // let Lua do it's work
     RunLuaChunk("DO_ON_MOUSE_CLICK_CHUNK");
-
-    // should we resume the mouse click?
+    
+     // should we resume the mouse click?
     lua_getglobal(FWLLua, "RESUME_MOUSE_CLICK");
     if (lua_toboolean(FWLLua, 1))
     {
@@ -7437,7 +7467,8 @@ PLUGIN_API int XPluginEnable(void)
 
     //register the mouse capture window
     XPLMCreateWindow_t MouseWindowData;
-    MouseWindowData.structSize = 72; // SDK 2 size to work around XPD-9350
+    // MouseWindowData.structSize = 72; // SDK 2 size to work around XPD-9350
+    MouseWindowData.structSize = sizeof(XPLMCreateWindow_t);
     MouseWindowData.left       = 0;
     MouseWindowData.bottom     = 0;
     XPLMGetScreenSize(&MouseWindowData.right, &MouseWindowData.top);
@@ -7445,6 +7476,7 @@ PLUGIN_API int XPluginEnable(void)
     MouseWindowData.drawWindowFunc           = FWLMouseEventWindowDraw;
     MouseWindowData.handleKeyFunc            = FWLMouseEventWindowKey;
     MouseWindowData.handleMouseClickFunc     = FWLMouseEventWindowMouse;
+    MouseWindowData.handleRightClickFunc     = FWLMouseEventWindowRightMouse;
     MouseWindowData.handleMouseWheelFunc     = FWLMouseEventWindowMouseWheel;
     MouseWindowData.handleCursorFunc         = FWLMouseEventWindowCursor;
     MouseWindowData.handleRightClickFunc     = FWLMouseEventWindowRightMouse;
