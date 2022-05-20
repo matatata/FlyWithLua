@@ -1127,7 +1127,8 @@ int __FWLMouseEventWindowMouse(XPLMWindowID /*inWindowID*/, int /*x*/, int /*y*/
         return 0;
     }
     
-
+    bool unsetButtonBit = false;
+    
     // setup the predefined variables
     lua_pushboolean(FWLLua, false);
     lua_setglobal(FWLLua, "RESUME_MOUSE_CLICK");
@@ -1142,12 +1143,15 @@ int __FWLMouseEventWindowMouse(XPLMWindowID /*inWindowID*/, int /*x*/, int /*y*/
     } else
     {
         lua_pushstring(FWLLua, "up");
-        setMouseButtonBit(buttonBit,false);
+        setMouseButtonBit(buttonBit,true);
+        unsetButtonBit = true;
     }
     lua_setglobal(FWLLua, "MOUSE_STATUS");
 
     // let Lua do it's work
     RunLuaChunk("DO_ON_MOUSE_CLICK_CHUNK");
+    
+    if(unsetButtonBit) { setMouseButtonBit(buttonBit,false); }
     
      // should we resume the mouse click?
     lua_getglobal(FWLLua, "RESUME_MOUSE_CLICK");
